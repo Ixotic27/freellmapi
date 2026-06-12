@@ -4,6 +4,8 @@ import { apiFetch } from '@/lib/api'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { PageHeader } from '@/components/page-header'
+import { Markdown } from '@/components/markdown'
+import { CopyButton } from '@/components/copy-button'
 
 interface FallbackEntry {
   modelDbId: number
@@ -31,7 +33,9 @@ export default function PlaygroundPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [selectedModel, setSelectedModel] = useState<string>('auto')
+  const [selectedModel, setSelectedModel] = useState<string>(
+    () => localStorage.getItem('playground.model') ?? 'auto',
+  )
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -143,7 +147,7 @@ export default function PlaygroundPage() {
         description="Send a chat completion through the router and see which provider serves it."
         actions={
           <>
-            <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v ?? 'auto')}>
+            <Select value={selectedModel} onValueChange={(v) => { const m = v ?? 'auto'; setSelectedModel(m); localStorage.setItem('playground.model', m) }}>
               <SelectTrigger className="w-[260px]">
                 <SelectValue />
               </SelectTrigger>
@@ -157,6 +161,13 @@ export default function PlaygroundPage() {
                     </span>
                   </SelectItem>
                 ))}
+                {availableModels.length === 0 && (
+                  // Models only appear once a platform has an enabled key. Without
+                  // one, the list is just "Auto" and looks broken — say why. (#269)
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                    No models yet. Add an API key on the Keys page to populate this list.
+                  </div>
+                )}
               </SelectContent>
             </Select>
             {messages.length > 0 && (
@@ -168,7 +179,7 @@ export default function PlaygroundPage() {
         }
       />
 
-      <div className="flex-1 flex flex-col rounded-lg border bg-card overflow-hidden min-h-0">
+      <div className="flex-1 flex flex-col rounded-3xl border bg-card overflow-hidden min-h-0">
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
           {messages.length === 0 ? (
             <div className="flex items-center justify-center h-full text-center">
@@ -184,13 +195,24 @@ export default function PlaygroundPage() {
               {messages.map((msg, i) => (
                 <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                   <div
-                    className={`max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                    className={`group relative max-w-[78%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-primary text-primary-foreground'
                         : 'bg-muted'
                     }`}
                   >
-                    <div className="whitespace-pre-wrap">{msg.content}</div>
+                    {msg.role === 'assistant' ? (
+                      <Markdown>{msg.content}</Markdown>
+                    ) : (
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                    )}
+                    {msg.role === 'assistant' && msg.content && (
+                      <CopyButton
+                        text={msg.content}
+                        label="Copy reply"
+                        className="absolute right-1.5 top-1.5 size-6 opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                      />
+                    )}
                     {msg.meta && (
                       <div className="flex items-center gap-2 mt-2 flex-wrap text-[11px] opacity-70 tabular-nums">
                         {msg.meta.platform && <span>{msg.meta.platform}</span>}
@@ -229,7 +251,7 @@ export default function PlaygroundPage() {
               onKeyDown={handleKeyDown}
               placeholder="Type a message… (⏎ to send, ⇧⏎ for newline)"
               rows={1}
-              className="flex-1 resize-none rounded-md border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 min-h-[40px] max-h-[160px]"
+              className="flex-1 resize-none rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring/50 min-h-[40px] max-h-[160px]"
               style={{ height: 'auto', overflow: 'hidden' }}
               onInput={e => {
                 const el = e.target as HTMLTextAreaElement
